@@ -81,7 +81,8 @@ class TestOVNClient(TestOVNClientBase):
             nexthop='10.42.0.1',
             external_ids={
                 'neutron:is_ext_gw': 'true',
-                'neutron:subnet_id': subnet['subnet_id']})
+                'neutron:subnet_id': subnet['subnet_id'],
+                constants.OVN_LRSR_EXT_ID_KEY: 'true'})
 
     def test__add_router_ext_gw_no_default_route(self):
         plugin = mock.MagicMock()
