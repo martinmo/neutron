@@ -376,6 +376,24 @@ class OvsdbNbOvnIdl(nb_impl_idl.OvnNbApiIdlImpl, Backend):
                            'dnat_and_snats': dnat_and_snats})
         return result
 
+    def get_all_logical_routers_static_routes(self):
+        """Get static routes associated with all logical Routers
+
+        @return: list of dict, each dict has key-value:
+                 - 'name': string router_id in neutron.
+                 - 'static_routes': list of static routes rows.
+        """
+        result = []
+        for lrouter in self._tables['Logical_Router'].rows.values():
+            if (ovn_const.OVN_ROUTER_NAME_EXT_ID_KEY not in
+                    lrouter.external_ids):
+                continue
+            result.append({'name': lrouter.name.replace('neutron-', ''),
+                           'static_routes': getattr(lrouter, 'static_routes',
+                                                    [])})
+
+        return result
+
     def get_acl_by_id(self, acl_id):
         try:
             return self.lookup('ACL', uuid.UUID(acl_id))
@@ -473,6 +491,8 @@ class OvsdbNbOvnIdl(nb_impl_idl.OvnNbApiIdlImpl, Backend):
     def delete_static_route(self, lrouter, ip_prefix, nexthop, if_exists=True):
         return cmd.DelStaticRouteCommand(self, lrouter, ip_prefix, nexthop,
                                          if_exists)
+    def set_static_route(self, sroute, **columns):
+        return cmd.SetStaticRouteCommand(self, sroute, **columns)
 
     def delete_address_set(self, name, if_exists=True, **columns):
         return cmd.DelAddrSetCommand(self, name, if_exists)

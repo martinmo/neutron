@@ -263,6 +263,18 @@ class API(api.API, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def set_static_route(self, sroute, **columns):
+        """Update static route columns in a logical router.
+
+        :param sroute:       The unique identifier of the LRSR
+        :type sroute:        string
+        :param columns:      Dictionary of static columns
+                             Supported columns: prefix, nexthop, external_ids
+        :type columns:       dictionary
+        :returns:            :class:`Command` with no result
+        """
+
+    @abc.abstractmethod
     def delete_address_set(self, name, if_exists=True):
         """Delete an address set
 

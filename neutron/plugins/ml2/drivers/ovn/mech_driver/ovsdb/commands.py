@@ -579,6 +579,23 @@ class DelStaticRouteCommand(command.BaseCommand):
                 break
 
 
+class SetStaticRouteCommand(command.BaseCommand):
+    def __init__(self, api, sroute, **columns):
+        super().__init__(api)
+        self.sroute = sroute
+        self.columns = columns
+
+    def run_idl(self, txn):
+        try:
+            for col, val in self.columns.items():
+                setattr(self.sroute, col, val)
+
+        except idlutils.RowNotFound:
+            msg = (_('Logical Router Static Route %s does not exist')
+                   % self.sroute)
+            raise RuntimeError(msg)
+
+
 class DelAddrSetCommand(command.BaseCommand):
     def __init__(self, api, name, if_exists):
         super(DelAddrSetCommand, self).__init__(api)
