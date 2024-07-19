@@ -250,6 +250,11 @@ class PortBindingChassisUpdateEvent(row_event.RowEvent):
     column on the Port_Binding. The port never goes down, so we won't
     see update the driver with the LogicalSwitchPortUpdateUpEvent which
     only monitors for transitions from DOWN to UP.
+
+    Also we check here if additional_chassis is set, which means, we have a
+    LSP migration and the ovn-controller at destination has the PortBinding
+    set. Than we need to inform nova via network-vif-plugged event, that
+    migration can continue.
     """
 
     def __init__(self, driver):
@@ -264,7 +269,20 @@ class PortBindingChassisUpdateEvent(row_event.RowEvent):
         # NOTE(twilson) ROW_UPDATE events always pass old, but chassis will
         # only be set if chassis has changed
         old_chassis = getattr(old, 'chassis', None)
-        if not (row.chassis and old_chassis) or row.chassis == old_chassis:
+        # NOTE(shoffmann): In most cases old_chassis is empty, so we can skip
+        # (like commented by twilson). But we need to continue, if
+        # row.additional_chassis is set or we request more than one chassis,
+        # as we than have a LSP migration and southbound ovsdb or
+        # ovn-controller on destination has the change applied. We use this
+        # change to send network-vif-plugged event to nova, so network setup
+        # is prepared and migration can start.
+        # We can't wait for additional_chassis to be set, as nova-compute
+        # doesn't attach the tap interface before the plugged event is
+        # received.
+        req_chassis = utils.get_requested_chassis(
+            row.options.get(ovn_const.LSP_OPTIONS_REQUESTED_CHASSIS_KEY, ''))
+        if (not (row.chassis and old_chassis) or row.chassis == old_chassis) \
+                and not (row.additional_chassis or len(req_chassis) > 1):
             return False
         if row.type == ovn_const.OVN_CHASSIS_REDIRECT:
             return False
@@ -275,15 +293,6 @@ class PortBindingChassisUpdateEvent(row_event.RowEvent):
             LOG.warning("Logical Switch Port %(port)s not found for "
                         "Port_Binding %(binding)s",
                         {'port': row.logical_port, 'binding': row.uuid})
-            return False
-
-        req_chassis = utils.get_requested_chassis(
-            row.options.get(ovn_const.LSP_OPTIONS_REQUESTED_CHASSIS_KEY, ''))
-        if len(req_chassis) > 1:
-            # This event has been issued during a LSP migration. During this
-            # process, the LSP will change the port binding but the port status
-            # will be handled by the ``LogicalSwitchPortUpdateDownEvent`` and
-            # ``LogicalSwitchPortUpdateUpEvent`` events.
             return False
 
         return utils.is_lsp_enabled(lsp) and utils.is_lsp_up(lsp)
