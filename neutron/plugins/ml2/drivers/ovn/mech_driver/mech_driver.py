@@ -872,21 +872,20 @@ class OVNMechanismDriver(api.MechanismDriver):
         original_port = copy.deepcopy(context.original)
         original_port['network'] = context.network.current
 
-        # NOTE(mjozefcz): Check if port is in migration state. If so update
-        # the port status from DOWN to UP in order to generate 'fake'
-        # vif-interface-plugged event. This workaround is needed to
-        # perform live-migration with live_migration_wait_for_vif_plug=True.
+        # NOTE(mjozefcz,shoffmann): Check if port is in migration state. If so
+        # don't update the port status and skip 'fake' vif-interface-plugged
+        # event. Instead we wait for event from southbound that southbound
+        # ovsdb or ovn-controller have the update. This workaround is needed
+        # to perform live-migration with live_migration_wait_for_vif_plug=True.
         if ((port['status'] == const.PORT_STATUS_DOWN and
              ovn_const.MIGRATING_ATTR in port[portbindings.PROFILE].keys() and
              port[portbindings.VIF_TYPE] in (
                  portbindings.VIF_TYPE_OVS,
                  portbindings.VIF_TYPE_VHOST_USER))):
-            LOG.info("Setting port %s status from DOWN to UP in order "
-                     "to emit vif-interface-plugged event.",
-                     port['id'])
-            self._plugin.update_port_status(context.plugin_context,
-                                            port['id'],
-                                            const.PORT_STATUS_ACTIVE)
+            LOG.debug("Emit no vif-interface-plugged event for port %s, so we "
+                      "can wait for southbound or ovn-controller to have the "
+                      "change.",
+                      port['id'])
             # The revision has been changed. In the meantime
             # port-update event already updated the OVN configuration,
             # So there is no need to update it again here. Anyway it
