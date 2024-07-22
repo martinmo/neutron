@@ -78,7 +78,11 @@ def has_lock_periodic(*args, periodic_run_limit=0, **kwargs):
                         raise periodics.NeverAgain()
                     _retries += 1
                 return
-            return f(self, *args, **kwargs)
+            try:
+                LOG.info('Maintenance task started: %s', f.__name__)
+                return f(self, *args, **kwargs)
+            finally:
+                LOG.info('Maintenance task finished: %s', f.__name__)
         return decorator
     return wrapper
 
