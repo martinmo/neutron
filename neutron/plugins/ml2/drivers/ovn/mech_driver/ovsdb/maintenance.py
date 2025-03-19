@@ -422,11 +422,22 @@ class DBInconsistenciesPeriodics(SchemaAwarePeriodicsBase):
                     self._fix_create_update_subnet(admin_context, row)
                 else:
                     self._fix_create_update(admin_context, row)
-            except Exception:
-                LOG.exception('Maintenance task: Failed to fix resource '
-                              '%(res_uuid)s (type: %(res_type)s)',
-                              {'res_uuid': row.resource_uuid,
-                               'res_type': row.resource_type})
+            except Exception as e:
+                if (
+                    "require a database lock but didn't get it yet or "
+                    "has already lost it"
+                    in str(e)
+                ):
+                    LOG.error(
+                        "Maintenance task aborted due to OVSDB lock error: %s",
+                        e,
+                    )
+                    return
+                else:
+                    LOG.exception('Maintenance task: Failed to fix deleted '
+                                'resource %(res_uuid)s (type: %(res_type)s)',
+                                {'res_uuid': row.resource_uuid,
+                                'res_type': row.resource_type})
 
         # Fix the deleted resources inconsistencies
         for row in delete_inconsistencies:
@@ -442,11 +453,22 @@ class DBInconsistenciesPeriodics(SchemaAwarePeriodicsBase):
                                                  row.resource_uuid)
                 else:
                     self._fix_delete(admin_context, row)
-            except Exception:
-                LOG.exception('Maintenance task: Failed to fix deleted '
-                              'resource %(res_uuid)s (type: %(res_type)s)',
-                              {'res_uuid': row.resource_uuid,
-                               'res_type': row.resource_type})
+            except Exception as e:
+                if (
+                    "require a database lock but didn't get it yet or "
+                    "has already lost it"
+                    in str(e)
+                ):
+                    LOG.error(
+                        "Maintenance task aborted due to OVSDB lock error: %s",
+                        e,
+                    )
+                    return
+                else:
+                    LOG.exception('Maintenance task: Failed to fix deleted '
+                                'resource %(res_uuid)s (type: %(res_type)s)',
+                                {'res_uuid': row.resource_uuid,
+                                'res_type': row.resource_type})
 
         self._sync_timer.stop()
         LOG.info('Maintenance task: Synchronization finished '
