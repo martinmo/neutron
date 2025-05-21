@@ -592,6 +592,9 @@ def get_lrouter_non_gw_routes(ovn_router):
         if strutils.bool_from_string(
                 external_ids.get(constants.OVN_ROUTER_IS_EXT_GW, 'false')):
             continue
+        if not strutils.bool_from_string(
+                external_ids.get(constants.OVN_LRSR_EXT_ID_KEY, 'false')):
+            continue
 
         routes.append({'destination': route.ip_prefix,
                        'nexthop': route.nexthop})
