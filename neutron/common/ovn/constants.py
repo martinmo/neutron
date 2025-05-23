@@ -314,9 +314,9 @@ LB_EXT_IDS_VIP_FIP_KEY = 'neutron:vip_fip'
 LB_EXT_IDS_VIP_PORT_ID_KEY = 'neutron:vip_port_id'
 
 # Hash Ring constants
-HASH_RING_NODES_TIMEOUT = 60
-HASH_RING_TOUCH_INTERVAL = 30
-HASH_RING_CACHE_TIMEOUT = 30
+HASH_RING_NODES_TIMEOUT = 120
+HASH_RING_TOUCH_INTERVAL = 15
+HASH_RING_CACHE_TIMEOUT = 120
 HASH_RING_ML2_GROUP = 'mechanism_driver'
 
 # Maximum chassis count where a gateway port can be hosted
