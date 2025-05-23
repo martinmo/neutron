@@ -32,6 +32,7 @@ from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
 from neutron_lib import constants as const
 from neutron_lib import context as n_context
+from neutron_lib.db import api as db_api
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import availability_zone as az_exc
 from neutron_lib.placement import utils as place_utils
@@ -52,6 +53,8 @@ from neutron.common.ovn import constants as ovn_const
 from neutron.common.ovn import exceptions as ovn_exceptions
 from neutron.common.ovn import extensions as ovn_extensions
 from neutron.common.ovn import utils as ovn_utils
+from neutron.common import utils as n_utils
+from neutron.common import wsgi_utils
 from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf
 from neutron.db import ovn_hash_ring_db
 from neutron.db import ovn_revision_numbers_db
@@ -127,6 +130,7 @@ class OVNMechanismDriver(api.MechanismDriver):
         self.sg_enabled = ovn_acl.is_sg_enabled()
         ovn_conf.register_opts()
         self._post_fork_event = threading.Event()
+        self._start_time = wsgi_utils.get_start_time()
         if cfg.CONF.SECURITYGROUP.firewall_driver:
             LOG.warning('Firewall driver configuration is ignored')
         if (const.TYPE_GENEVE in cfg.CONF.ml2.type_drivers and
@@ -310,10 +314,9 @@ class OVNMechanismDriver(api.MechanismDriver):
     def _setup_hash_ring(self):
         """Setup the hash ring.
 
-        The first worker to acquire the lock is responsible for cleaning
-        the hash ring from previous runs as well as start the probing
-        thread for this host. Subsequently workers just need to register
-        themselves to the hash ring.
+        The first worker to execute this method will remove the hash ring from
+        previous runs as well as start the probing thread for this host.
+        Subsequently workers just need to register themselves to the hash ring.
         """
         # Attempt to remove the node from the ring when the worker stops
         sh = oslo_service.SignalHandler()
@@ -321,22 +324,51 @@ class OVNMechanismDriver(api.MechanismDriver):
         sh.add_handler("SIGTERM", self._remove_node_from_hash_ring)
 
         admin_context = n_context.get_admin_context()
-        if not self._hash_ring_probe_event.is_set():
-            # Clear existing entries
-            ovn_hash_ring_db.remove_nodes_from_host(admin_context,
-                                                    self.hash_ring_group)
-            self.node_uuid = ovn_hash_ring_db.add_node(admin_context,
-                                                       self.hash_ring_group)
-            self._hash_ring_thread = maintenance.MaintenanceThread()
-            self._hash_ring_thread.add_periodics(
-                maintenance.HashRingHealthCheckPeriodics(
-                    self.hash_ring_group))
-            self._hash_ring_thread.start()
-            LOG.info("Hash Ring probing thread has started")
-            self._hash_ring_probe_event.set()
+        if self._start_time:
+            self._setup_hash_ring_start_time(admin_context)
         else:
-            self.node_uuid = ovn_hash_ring_db.add_node(admin_context,
-                                                       self.hash_ring_group)
+            self._setup_hash_ring_event(admin_context)
+        self._register_hash_ring_maintenance()
+
+    def _register_hash_ring_maintenance(self):
+        """Maintenance method for the node OVN hash ring register
+
+        The ``self.node_uuid`` value must be set before calling this method.
+        """
+        self._hash_ring_thread = maintenance.MaintenanceThread()
+        self._hash_ring_thread.add_periodics(
+            maintenance.HashRingHealthCheckPeriodics(
+                self.hash_ring_group, self.node_uuid))
+        self._hash_ring_thread.start()
+        LOG.info('Hash Ring probing thread for node %s has started',
+                 self.node_uuid)
+
+    def _setup_hash_ring_event(self, context):
+        LOG.debug('Hash Ring setup using multiprocess event lock')
+        if not self._hash_ring_probe_event.is_set():
+            # Clear existing entries. This code section should be executed
+            # only once per node (chassis); the multiprocess event should be
+            # set just after the ``is_set`` check.
+            self._hash_ring_probe_event.set()
+            ovn_hash_ring_db.remove_nodes_from_host(context,
+                                                    self.hash_ring_group)
+        self.node_uuid = ovn_hash_ring_db.add_node(context,
+                                                   self.hash_ring_group)
+
+    @db_api.retry_if_session_inactive()
+    @db_api.CONTEXT_WRITER
+    def _setup_hash_ring_start_time(self, context):
+        LOG.debug('Hash Ring setup using WSGI start time')
+        # Delete all node registers without created_at=self._start_time
+        created_at = n_utils.ts_to_datetime(self._start_time)
+        ovn_hash_ring_db.remove_nodes_from_host(
+            context, self.hash_ring_group, created_at=created_at)
+        self.node_uuid = ovn_hash_ring_db.add_node(
+            context, self.hash_ring_group, created_at=created_at)
+        newer_nodes = ovn_hash_ring_db.get_nodes(
+            context, self.hash_ring_group, created_at=created_at)
+        LOG.debug('Hash Ring setup, this worker has detected %s OVN hash '
+                  'ring registers in the database', len(newer_nodes))
 
     def post_fork_initialize(self, resource, event, trigger, payload=None):
         # Initialize API/Maintenance workers with OVN IDL connections
