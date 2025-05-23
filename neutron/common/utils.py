@@ -18,6 +18,7 @@
 
 """Utilities and helper functions."""
 
+import datetime
 import functools
 import hashlib
 import hmac
@@ -1088,3 +1089,13 @@ def sign_instance_id(conf, instance_id):
     secret = encodeutils.to_utf8(secret)
     instance_id = encodeutils.to_utf8(instance_id)
     return hmac.new(secret, instance_id, hashlib.sha256).hexdigest()
+
+
+def ts_to_datetime(timestamp):
+    """Converts timestamp (in seconds) to datetime"""
+    return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+
+
+def datetime_to_ts(_datetime):
+    """Converts datetime to timestamp in seconds"""
+    return int(datetime.datetime.timestamp(_datetime))
