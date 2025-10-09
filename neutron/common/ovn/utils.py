@@ -31,6 +31,7 @@ from neutron_lib import context as n_context
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import constants as plugin_constants
 from neutron_lib.plugins import directory
+from neutron_lib.utils import helpers
 from neutron_lib.utils import net as n_utils
 from oslo_concurrency import processutils
 from oslo_config import cfg
@@ -1491,3 +1492,18 @@ def get_logical_router_port_ha_chassis(nb_idl, lrp, priorities=None):
         chassis.append((hc.chassis_name, hc.priority))
 
     return chassis
+
+
+def parse_bridge_mappings(mapping_list):
+    """Parse a list of bridge mappings into a dict, removing and logging duplicates"""
+    mappings = helpers.parse_mappings(mapping_list, unique_keys=False)
+    cleaned_mappings = {}
+    for net, bridges in mappings.items():
+        bridge = bridges[0]
+        if bridge in cleaned_mappings.values():
+            LOG.warn(f"bridge {bridge} is used in more than one mapping, ignoring mapping {net}:{bridge}")
+            continue
+        if len(bridges) > 1:
+            LOG.warn(f"{net} is mapped to more than one bridge, will only use {net}:{bridge}")
+        cleaned_mappings[net] = bridge
+    return cleaned_mappings

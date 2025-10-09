@@ -205,7 +205,7 @@ class ChassisEvent(row_event.RowEvent):
         new_other_config = utils.get_ovn_chassis_other_config(row)
         if event != self.ROW_DELETE:
             bridge_mappings = new_other_config.get('ovn-bridge-mappings', '')
-            mapping_dict = helpers.parse_mappings(bridge_mappings.split(','))
+            mapping_dict = utils.parse_bridge_mappings(bridge_mappings.split(','))
             phy_nets = list(mapping_dict)
 
         self.driver.update_segment_host_mapping(host, phy_nets)

@@ -974,7 +974,7 @@ class OvsdbSbOvnIdl(sb_impl_idl.OvnSbApiIdlImpl, Backend):
     def _get_chassis_physnets(self, chassis):
         other_config = utils.get_ovn_chassis_other_config(chassis)
         bridge_mappings = other_config.get('ovn-bridge-mappings', '')
-        mapping_dict = helpers.parse_mappings(bridge_mappings.split(','))
+        mapping_dict = utils.parse_bridge_mappings(bridge_mappings.split(','))
         return list(mapping_dict.keys())
 
     def chassis_exists(self, hostname):
