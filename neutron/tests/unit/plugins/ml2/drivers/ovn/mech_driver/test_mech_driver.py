@@ -3358,15 +3358,13 @@ class TestOVNMechanismDriver(TestOVNMechanismDriverBase):
                       'mac_address': port2['mac_address']}],
                     port2['allowed_address_pairs'])
 
-                # Now test the same but giving a subnet as allowed address pair
-                self._make_port(
+                # LP#2131928: Now test the same but giving a subnet as allowed address pair
+                port3 = self._make_port(
                     self.fmt, network['network']['id'],
                     allowed_address_pairs=[{'ip_address': '10.0.0.2/26'}],
-                    expected_res_status=exc.HTTPBadRequest.code,
-                    arg_list=('allowed_address_pairs',))
-                port3 = self._show('ports', port1['id'])['port']
+                    arg_list=('allowed_address_pairs',))['port']
                 self.assertEqual(
-                    [{'ip_address': '10.0.0.3',
+                    [{'ip_address': '10.0.0.2/26',
                       'mac_address': port3['mac_address']}],
                     port3['allowed_address_pairs'])
 

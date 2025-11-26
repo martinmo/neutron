@@ -640,9 +640,19 @@ class OVNMechanismDriver(api.MechanismDriver):
         if not allowed_address_pairs:
             return
 
-        port_allowed_address_pairs_ip_addresses = [
+        port_allowed_ip_networks = [
             netaddr.IPNetwork(pair['ip_address'])
             for pair in allowed_address_pairs]
+
+        # LP#2131928: only check for single network:distributed addresses
+        def _is_single_address(ip_network):
+            if ip_network.version == 6:
+                return ip_network.prefixlen == 128
+            return ip_network.prefixlen == 32
+
+        port_allowed_address_pairs_ip_addresses = [
+            net for net in port_allowed_ip_networks
+            if _is_single_address(net)]
 
         distributed_ports = self._plugin.get_ports(
             context.elevated(),
